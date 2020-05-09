@@ -79,8 +79,8 @@ void writeImage(char *filePath, float *grayscale, unsigned int rows, unsigned in
 }
 
 
-float g(int x, int y, int i, int j) {
-    return float(sqrt(pow(x - i, 2) + pow(y - j, 2)));
+float g(int x, int y, float sigma) {
+    return exp(- (x * x - y*y) / (sigma * sigma));
 }
 
 float f(float x, float sigma) {
@@ -91,31 +91,46 @@ float r(float x, float x1, float sigma) {
     return exp(pow(f(x, sigma) - f(x1, sigma), 2) / sigma);
 }
 
+
+float distance(int x, int y, int i, int j) {
+    return float(sqrt(pow(x - i, 2) + pow(y - j, 2)));
+}
+
+double gaussian(float x, double sigma) {
+    return exp(-(pow(x, 2))/(2 * pow(sigma, 2))) / (2 * CV_PI * pow(sigma, 2));
+
+}
+
 void hostBilateral(float* output, unsigned int rows, unsigned int cols) {
     float sigma = 16.0;
     cout << rows<< endl;
     cout << cols << endl;
+
     for (int i = 0; i<rows; i++) {
         for (int j = 0; j<cols; j++){
                 int h =0, k = 0;
-                for (int x = -1; x<WINDOW_SIZE-1; x++) {
-                    for (int y = -1; y< WINDOW_SIZE-1; y++) {
+                for (int x = -1; x<2; x++) {
+                    for (int y = -1; y< 2; y++) {
                         int currentRow = i + x * rows;
                         int currentColumn = j+y;
-                        if (currentRow < 0 || currentRow > rows) {
-                            currentRow = i-x;
+                        if (currentRow < 0) {
+                            currentRow += 2* rows;
+                        } 
+                        if (currentRow > rows) {
+                            currentRow -=2;
                         }
                         if (currentColumn < 0 || currentColumn > rows) {
                             currentColumn = j - y;
                         }
-                        
-                        h += f(output[currentRow + currentColumn], sigma) + g(x, y, i, j) + r(output[i + j], output[currentRow +currentRow], sigma);
-                        k += g(x, y, i, j) + r(output[i + j], output[currentRow + currentColumn], sigma);
+                        // cout<< output[currentRow + currentColumn] << endl;
+                        h += f(output[currentRow + currentColumn], sigma) * g(x, y, sigma) * r(output[i + j], output[currentRow +currentColumn], sigma);
+                        k += g(x, y, sigma) * r(output[i + j], output[currentRow + currentColumn], sigma);
                     }
                 }
+                // cout << h << endl;
+
                 h /= k;
                 // cout << output[i*rows+j] << endl;
-                cout << h << endl;
                 output[i*rows+j] = h;
         }
     }
@@ -130,34 +145,6 @@ int main()
     grayscale = readLikeGrayScale("lena.bmp", &rows, &cols);
     hostBilateral(grayscale, rows, cols);
     writeImage("afterRead.bmp", grayscale, rows, cols);
-    // cudaChannelFormatDesc channelDesc =
-    //     cudaCreateChannelDesc(32, 0, 0, 0,
-    //                           cudaChannelFormatKindFloat);
-    // cudaArray *cuArray;
-    // cudaMallocArray(&cuArray, &channelDesc, cols, rows);
-
-    // cudaMemcpyToArray(cuArray, 0, 0, grayscale, rows * cols * sizeof(float),
-    //                                   cudaMemcpyHostToDevice);
-
-    // tex.addressMode[0] = cudaAddressModeWrap;
-    // tex.addressMode[1] = cudaAddressModeWrap;
-    // tex.filterMode = cudaFilterModeLinear;
-
-    // cudaBindTextureToArray(tex, cuArray, channelDesc));
-
-    // float *dev_output, *output;
-    // output = (float *)calloc(rows * cols, sizeof(float));
-    // cudaMalloc(&dev_output, rows * cols * sizeof(float));
-
-    // dim3 dimBlock(16, 16);
-    // dim3 dimGrid((cols + dimBlock.x - 1) / dimBlock.x,
-    //              (rows + dimBlock.y - 1) / dimBlock.y);
-    // cudaBilateral<<<dimGrid, dimBlock>>>(dev_output, cols, rows);
-    // cudaMemcpy(output, dev_output, rows * cols * sizeof(float), cudaMemcpyDeviceToHost);
-
-    // writeImage("result.bmp", output, rows, cols);
-    // cudaFreeArray(cuArray);
-    // cudaFree(dev_output);
     return 0;
 }
 
